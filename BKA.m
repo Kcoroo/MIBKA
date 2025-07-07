@@ -1,80 +1,63 @@
-% Black-winged Kite Algorithm (BKA)
-function [Best_Fitness, Best_Pos, Convergence_curve] = BKA(N, MaxIt, lb, ub, dim, fobj)
-    % 参数说明：
-    % N - 种群数量
-    % MaxIt - 最大迭代次数
-    % lb, ub - 搜索空间上下界
-    % dim - 维度
-    % fobj - 目标函数
+function [Bestscore,Best_pos,Convergence_curve]=BKA(N,Maxits,lb,ub,dim,fobj)
+    p=0.9;
+    XPos=initialization(N,dim,ub,lb);
+    for i =1:N
+        XFit(i)=fobj(XPos(i,:));
+    end
+    Convergence_curve=zeros(1,Maxits);
 
-    p = 0.9;
-    Positions = initialization(N, dim, ub, lb); % 普通初始化
-    Fitness = arrayfun(@(i) fobj(Positions(i,:)), 1:N);
-    [Best_Fitness, idx] = min(Fitness);
-    Best_Pos = Positions(idx, :);
-    Convergence_curve = zeros(1, MaxIt);
+    for t=1:Maxits
+        r=rand;
+        [~,sorted_indexes]=sort(XFit);
+        XLeader_Pos=XPos(sorted_indexes(1),:);
+        XLeader_Fit = XFit(sorted_indexes(1));
 
-
-
-    % 主循环
-    for it = 1:MaxIt
-        r = rand;
-        
-        % 攻击行为
-        for i = 1:N
-            n = 0.05 * exp(-2 * (it/MaxIt)^2);
-            if p < r
-                New_Pos = Positions(i,:) + n * (1 + sin(r)) * Positions(i,:);
+        %% 探索行为
+        for i=1:N
+            n=0.05*exp(-2*(t/Maxits)^2);
+            if p<r
+                XPosNew(i,:)=XPos(i,:)+n.*(1+sin(r))*XPos(i,:);
             else
-                New_Pos = Positions(i,:) .* (n * (2*rand(1,dim) - 1) + 1);
+                XPosNew(i,:)= XPos(i,:).*(n*(2*rand(1,dim)-1)+1);
             end
-            
-            % 边界处理
-            New_Pos = max(New_Pos, lb);
-            New_Pos = min(New_Pos, ub);
-            
-            % 更新位置
-            New_Fitness = fobj(New_Pos);
-            if New_Fitness < Fitness(i)
-                Positions(i,:) = New_Pos;
-                Fitness(i) = New_Fitness;
+            XPosNew(i,:) = max(XPosNew(i,:),lb);
+            XPosNew(i,:) = min(XPosNew(i,:),ub);
+            XFit_New(i)=fobj(XPosNew(i,:));
+            if(XFit_New(i)<XFit(i))
+                XPos(i,:) = XPosNew(i,:);
+                XFit(i) = XFit_New(i);
             end
-        end
 
-        % 迁移行为
-        for i = 1:N
-            m = 2 * sin(r + pi/2);
-            s = randi([1, N], 1); % 随机选择一个个体
-            r_Fitness = Fitness(s);
-            
-            cauchy_value = tan((rand(1,dim) - 0.5) * pi); % 柯西扰动
-            
-            if Fitness(i) < r_Fitness
-                New_Pos = Positions(i,:) + cauchy_value .* (Positions(i,:) - Best_Pos);
+            %% 开发行为
+            m=2*sin(r+pi/2);
+            s = randi([1,N],1); % 修正为从 1 到 N 随机选择
+            r_XFitness=XFit(s);
+            ori_value = rand(1,dim);
+            cauchy_value = tan((ori_value-0.5)*pi);
+            if XFit(i)< r_XFitness
+                XPosNew(i,:)=XPos(i,:)+cauchy_value .* (XPos(i,:)-XLeader_Pos);
             else
-                New_Pos = Positions(i,:) + cauchy_value .* (Best_Pos - m * Positions(i,:));
+                XPosNew(i,:)=XPos(i,:)+cauchy_value .* (XLeader_Pos-m.*XPos(i,:));
             end
-            
-            % 边界处理
-            New_Pos = max(New_Pos, lb);
-            New_Pos = min(New_Pos, ub);
-            
-            % 更新位置
-            New_Fitness = fobj(New_Pos);
-            if New_Fitness < Fitness(i)
-                Positions(i,:) = New_Pos;
-                Fitness(i) = New_Fitness;
+            XPosNew(i,:) = max(XPosNew(i,:),lb);
+            XPosNew(i,:) = min(XPosNew(i,:),ub);
+            XFit_New(i)=fobj(XPosNew(i,:));
+            if(XFit_New(i)<XFit(i))
+                XPos(i,:) = XPosNew(i,:);
+                XFit(i) = XFit_New(i);
             end
         end
 
-        % 更新全局最优
-        [Current_Best_Fitness, idx] = min(Fitness);
-        if Current_Best_Fitness < Best_Fitness
-            Best_Fitness = Current_Best_Fitness;
-            Best_Pos = Positions(idx, :);
+        %% 更新最优解
+        [Best_Fitness,idx]=min(XFit);
+        Best_Pos=XPos(idx,:);
+        if Best_Fitness < Convergence_curve(max(1,t-1))
+            Bestscore=Best_Fitness;
+            Best_pos=Best_Pos;
+        else
+            Bestscore=Convergence_curve(max(1,t-1));
+            Best_pos=XLeader_Pos;
         end
-        
-        % 记录收敛曲线
-        Convergence_curve(it) = Best_Fitness;
+        Convergence_curve(t)=Bestscore;
     end
 end
